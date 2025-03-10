@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import WasteBin, WasteDisposal, UserProfile
 from django.utils.timezone import now
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout,authenticate, get_backends
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User
@@ -69,7 +69,12 @@ def register(request):
 
         user = User.objects.create_user(username=username, password=password1)
         UserProfile.objects.create(user=user, barcode_id=barcode_id)
-        login(request, user)
+
+        # Explicitly set authentication backend
+        backend = get_backends()[0]  # Select the first authentication backend
+        user.backend = f"{backend.__module__}.{backend.__class__.__name__}"
+        
+        login(request, user)  # Now Django knows which backend to use
 
         messages.success(request, "Registration successful!")
         return redirect('dashboard')

@@ -107,6 +107,10 @@
                     <button type="button" id="scanner-button" class="btn btn-secondary w-100">Start Scanner</button>
                     <input type="text" id="barcode" class="form-control mt-2" name="barcode_id"
                         placeholder="Barcode will appear here" readonly required>
+                    <!-- Button to upload image and scan -->
+                    <!-- <label class="form-label mt-3">Or Upload an Image to Scan</label>
+                    <input type="file" class="form-control" accept="image/*" onchange="scanFromImage(event)"> -->
+
                 </div>
 
                 <!-- Submit Button -->
@@ -117,7 +121,6 @@
                     Here</a></p>
         </div>
     </div>
-
     <!-- Barcode Scanner Script -->
     <script>
         let scanner = null;
@@ -149,6 +152,7 @@
             this.disabled = true;
         });
     </script>
+
 </body>
 
 </html>

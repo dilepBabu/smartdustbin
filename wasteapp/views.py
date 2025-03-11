@@ -1,12 +1,17 @@
 from django.shortcuts import render, redirect
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import WasteBin, WasteDisposal, UserProfile
+from .models import WasteBin, WasteDisposalRecord, UserProfile  # ✅ Removed 'WasteDisposal'
 from django.utils.timezone import now
 from django.contrib.auth import authenticate, login, logout,authenticate, get_backends
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User
+import cv2
+import numpy as np
+from pyzbar.pyzbar import decode
+from PIL import Image
+from .forms import WasteDisposalForm
 @api_view(['GET'])
 def get_bins(request):
     bins = WasteBin.objects.all().values()
@@ -42,15 +47,24 @@ def user_login(request):
             return redirect('dashboard')
     return render(request, 'wasteapp/login.html')
 
-@login_required
-def dashboard(request):
-    return render(request, 'wasteapp/dashboard.html')
+
 
 def user_logout(request):
     logout(request)
     return redirect('login')
+
+@login_required
 def dashboard(request):
-    return render(request, 'wasteapp/dashboard.html')
+    user_profile = UserProfile.objects.get(user=request.user)
+    disposal_history = WasteDisposalRecord.objects.filter(user=request.user).order_by('-timestamp')  # Fetch history
+
+    context = {
+        'username': request.user.username,
+        'barcode_id': user_profile.barcode_id,
+        'total_credits': user_profile.credits,
+        'disposal_history': disposal_history,  # Pass records to template
+    }
+    return render(request, 'wasteapp/dashboard.html', context)
 
 def register(request):
     if request.method == 'POST':
@@ -80,3 +94,54 @@ def register(request):
         return redirect('dashboard')
 
     return render(request, 'wasteapp/register.html')
+
+
+@login_required
+def record_waste(request):
+    if request.method == 'POST':
+        form = WasteDisposalForm(request.POST, request.FILES)
+        barcode_value = request.POST.get('barcode', '')  # Get scanned barcode
+
+        if form.is_valid():
+            waste_disposal = form.save(commit=False)
+            waste_disposal.user = request.user
+            waste_disposal.name = request.user.username
+
+            # If barcode is scanned using live camera
+            if barcode_value:
+                waste_disposal.barcode_id = barcode_value
+
+            # If barcode image is uploaded, extract barcode
+            elif 'barcode_image' in request.FILES:
+                image = request.FILES['barcode_image']
+                barcode = extract_barcode_from_image(image)
+                if barcode:
+                    waste_disposal.barcode_id = barcode
+                else:
+                    messages.error(request, "No barcode detected in the image.")
+                    return redirect('record_waste')
+
+            waste_disposal.credits_earned = 5
+            waste_disposal.save()
+
+            # Update user credits
+            user_profile = UserProfile.objects.get(user=request.user)
+            user_profile.credits += 5
+            user_profile.save()
+
+            messages.success(request, "Waste disposal recorded successfully!")
+            return redirect('dashboard')
+    else:
+        form = WasteDisposalForm()
+
+    return render(request, 'wasteapp/record_waste.html', {'form': form})
+
+# ✅ Function to extract barcode from an uploaded image
+def extract_barcode_from_image(image):
+    img = Image.open(image)
+    img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)  # Convert to grayscale
+    barcodes = decode(img)
+    
+    if barcodes:
+        return barcodes[0].data.decode('utf-8')  # ✅ Return barcode text
+    return None

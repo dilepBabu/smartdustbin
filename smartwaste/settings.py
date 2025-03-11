@@ -37,14 +37,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # AllAuth Apps
     'django.contrib.sites',
-    
-    # Third-party apps
-    'allauth', 
-    'allauth.account', 
+    'allauth',
+    'allauth.account',
     'allauth.socialaccount',
-    
-    # Your app
     'wasteapp',
 ]
 
@@ -119,15 +117,13 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Authentication Settings
+SITE_ID = 1
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
-
-SITE_ID = 1
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/dashboard/'  # ✅ Redirect users to dashboard after login
+LOGOUT_REDIRECT_URL = '/'  # ✅ Redir
 ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_USERNAME_REQUIRED = True

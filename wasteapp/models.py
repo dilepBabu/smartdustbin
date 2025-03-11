@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     barcode_id = models.CharField(max_length=100, unique=True)  # Store scanned barcode
@@ -17,12 +18,15 @@ class WasteBin(models.Model):
     def __str__(self):
         return self.location
 
-class WasteDisposal(models.Model):
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    bin = models.ForeignKey(WasteBin, on_delete=models.CASCADE)
-    weight = models.FloatField()
+class WasteDisposalRecord(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100, null=True, blank=True)
+    barcode_id = models.CharField(max_length=100, null=True, blank=True)
+    barcode_image = models.ImageField(upload_to='barcodes/', null=True, blank=True)  # ✅ Store barcode image
+    waste_type = models.CharField(max_length=50)
+    credits_earned = models.IntegerField(default=0)
     timestamp = models.DateTimeField(auto_now_add=True)
-    credits_earned = models.IntegerField()
 
     def __str__(self):
-        return f"{self.user.user.username} - {self.bin.location} - {self.credits_earned} credits"
+        return f"{self.name} - {self.waste_type} - {self.timestamp}"
+

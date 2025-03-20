@@ -1,12 +1,14 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect,get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import WasteBin, WasteDisposalRecord, UserProfile  # ✅ Removed 'WasteDisposal'
-from django.utils.timezone import now
+from .models import WasteBin, WasteDisposalRecord, UserProfile, RedeemHistory
 from django.contrib.auth import authenticate, login, logout,authenticate, get_backends
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User
+from django.utils import timezone  # ✅ Import timezone for timestamp
+from django.contrib.auth.decorators import user_passes_test
+from django.contrib.admin.views.decorators import staff_member_required
 import cv2
 import numpy as np
 from pyzbar.pyzbar import decode
@@ -16,26 +18,42 @@ from .forms import WasteDisposalForm
 def get_bins(request):
     bins = WasteBin.objects.all().values()
     return Response({'bins': list(bins)})
-
-@api_view(['POST'])
+@login_required
 def record_waste(request):
-    barcode = request.data.get('barcode_id')
-    bin_id = request.data.get('bin_id')
-    weight = float(request.data.get('weight'))
+    if request.method == 'POST':
+        form = WasteDisposalForm(request.POST, request.FILES)
+        barcode_value = request.POST.get('barcode', '')  # ✅ Get scanned barcode
 
-    try:
-        user = UserProfile.objects.get(barcode_id=barcode)
-        bin = WasteBin.objects.get(bin_id=bin_id)
-        credits = int(weight * 5)  # 5 points per kg of waste
+        if form.is_valid():
+            try:
+                # ✅ Check if the barcode exists in the UserProfile table
+                user_profile = UserProfile.objects.get(barcode_id=barcode_value)
 
-        WasteDisposal.objects.create(user=user, bin=bin, weight=weight, timestamp=now(), credits_earned=credits)
-        user.credits += credits
-        user.save()
+                # ✅ Ensure that waste is recorded for the correct user (not the logged-in user by default)
+                waste_disposal = form.save(commit=False)
+                waste_disposal.user = user_profile.user  # ✅ Assign waste to the correct user
+                waste_disposal.barcode_id = barcode_value
+                waste_disposal.credits_earned = 5
+                waste_disposal.timestamp = timezone.now()
+                waste_disposal.save()
 
-        return Response({'message': 'Waste recorded successfully!', 'credits_earned': credits})
-    except:
-        return Response({'error': 'Invalid barcode or bin ID'}, status=400)
-    
+                # ✅ Add credits only to the correct user
+                user_profile.credits += 5
+                user_profile.save()
+
+                messages.success(request, f"Waste recorded successfully for {user_profile.user.username}!")
+                return redirect('dashboard')
+
+            except UserProfile.DoesNotExist:
+                messages.error(request, "This barcode is not registered. Please use a valid barcode.")
+                return redirect('record_waste')
+
+    else:
+        form = WasteDisposalForm()
+
+    return render(request, 'wasteapp/record_waste.html', {'form': form})
+
+
 
 def user_login(request):
     if request.method == 'POST':
@@ -52,19 +70,29 @@ def user_login(request):
 def user_logout(request):
     logout(request)
     return redirect('login')
-
 @login_required
 def dashboard(request):
-    user_profile = UserProfile.objects.get(user=request.user)
-    disposal_history = WasteDisposalRecord.objects.filter(user=request.user).order_by('-timestamp')  # Fetch history
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
 
-    context = {
-        'username': request.user.username,
-        'barcode_id': user_profile.barcode_id,
-        'total_credits': user_profile.credits,
-        'disposal_history': disposal_history,  # Pass records to template
-    }
-    return render(request, 'wasteapp/dashboard.html', context)
+        # ✅ Show only the logged-in user's records
+        disposal_history = WasteDisposalRecord.objects.filter(user=request.user).order_by('-timestamp')
+        redemption_history = RedeemHistory.objects.filter(user=request.user).order_by('-timestamp')
+
+        context = {
+            'username': request.user.username,
+            'barcode_id': user_profile.barcode_id,
+            'total_credits': user_profile.credits,
+            'disposal_history': disposal_history,  # ✅ Now only shows user's own records
+            'redemption_history': redemption_history,
+        }
+        return render(request, 'wasteapp/dashboard.html', context)
+
+    except UserProfile.DoesNotExist:
+        messages.error(request, "Your profile is incomplete. Please contact the admin.")
+        return redirect('logout')
+
+
 
 def register(request):
     if request.method == 'POST':
@@ -95,7 +123,6 @@ def register(request):
 
     return render(request, 'wasteapp/register.html')
 
-
 @login_required
 def record_waste(request):
     if request.method == 'POST':
@@ -103,45 +130,141 @@ def record_waste(request):
         barcode_value = request.POST.get('barcode', '')  # Get scanned barcode
 
         if form.is_valid():
-            waste_disposal = form.save(commit=False)
-            waste_disposal.user = request.user
-            waste_disposal.name = request.user.username
+            try:
+                # ✅ Find the user that owns this barcode
+                user_profile = UserProfile.objects.get(barcode_id=barcode_value)
 
-            # If barcode is scanned using live camera
-            if barcode_value:
+                # ✅ Create a new waste record under the correct user
+                waste_disposal = form.save(commit=False)
+                waste_disposal.user = user_profile.user  # ✅ Assign waste to the correct user
                 waste_disposal.barcode_id = barcode_value
+                waste_disposal.credits_earned = 5
+                waste_disposal.timestamp = timezone.now()
+                waste_disposal.save()
 
-            # If barcode image is uploaded, extract barcode
-            elif 'barcode_image' in request.FILES:
-                image = request.FILES['barcode_image']
-                barcode = extract_barcode_from_image(image)
-                if barcode:
-                    waste_disposal.barcode_id = barcode
-                else:
-                    messages.error(request, "No barcode detected in the image.")
-                    return redirect('record_waste')
+                # ✅ Update credits for the correct user
+                user_profile.credits += 5
+                user_profile.save()
 
-            waste_disposal.credits_earned = 5
-            waste_disposal.save()
+                messages.success(request, f"Waste disposal recorded successfully for {user_profile.user.username}!")
+                return redirect('dashboard')
 
-            # Update user credits
-            user_profile = UserProfile.objects.get(user=request.user)
-            user_profile.credits += 5
-            user_profile.save()
+            except UserProfile.DoesNotExist:
+                messages.error(request, "This barcode is not registered. Please use a valid barcode.")
+                return redirect('record_waste')
 
-            messages.success(request, "Waste disposal recorded successfully!")
-            return redirect('dashboard')
     else:
         form = WasteDisposalForm()
 
     return render(request, 'wasteapp/record_waste.html', {'form': form})
+
 
 # ✅ Function to extract barcode from an uploaded image
 def extract_barcode_from_image(image):
     img = Image.open(image)
     img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)  # Convert to grayscale
     barcodes = decode(img)
-    
+
     if barcodes:
-        return barcodes[0].data.decode('utf-8')  # ✅ Return barcode text
-    return None
+        return barcodes[0].data.decode('utf-8')  # ✅ Return the barcode as text
+    return None  # ✅ Return None if no barcode is detected
+
+from .forms import RedeemForm
+
+@login_required
+def redeem_credits(request):
+    user_profile = UserProfile.objects.get(user=request.user)
+
+    if request.method == 'POST':
+        form = RedeemForm(request.POST)
+        if form.is_valid():
+            selected_reward = form.cleaned_data['reward']
+            required_credits = 70 if selected_reward == 'Sick Leave' else 50  # Set credit requirement
+
+            if user_profile.credits >= required_credits:
+                # Deduct credits and save redemption history
+                user_profile.credits -= required_credits
+                user_profile.save()
+
+                RedeemHistory.objects.create(
+                    user=request.user,
+                    redeemed_credits=required_credits,
+                    reward=selected_reward
+                )
+
+                messages.success(request, f"You have successfully redeemed {selected_reward}!")
+                return redirect('dashboard')
+            else:
+                messages.error(request, "Not enough credits to redeem this reward.")
+    
+    else:
+        form = RedeemForm()
+
+    return render(request, 'wasteapp/redeem.html', {'form': form, 'credits': user_profile.credits})
+
+
+@login_required
+def edit_waste(request, waste_id):
+    waste_record = get_object_or_404(WasteDisposalRecord, id=waste_id, user=request.user)
+
+    if request.method == "POST":
+        form = WasteDisposalForm(request.POST, instance=waste_record)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Waste record updated successfully!")
+            return redirect('dashboard')
+    else:
+        form = WasteDisposalForm(instance=waste_record)
+
+    return render(request, 'wasteapp/edit_waste.html', {'form': form})
+
+@login_required
+def delete_waste(request, waste_id):
+    waste_record = get_object_or_404(WasteDisposalRecord, id=waste_id, user=request.user)
+    waste_record.delete()
+    messages.success(request, "Waste record deleted successfully!")
+    return redirect('dashboard')
+
+
+from django.db.models import Q
+from django.utils.dateparse import parse_date
+
+def admin_required(user):
+    return user.is_staff
+
+@user_passes_test(admin_required, login_url='/login/')
+def admin_dashboard(request):
+    users = UserProfile.objects.all()
+    waste_records = WasteDisposalRecord.objects.all()
+
+    # Fetch filter parameters from request
+    search_query = request.GET.get('search', '')
+    waste_type_filter = request.GET.get('waste_type', '')
+    start_date = parse_date(request.GET.get('start_date', ''))
+    end_date = parse_date(request.GET.get('end_date', ''))
+
+    # Apply filters
+    if search_query:
+        waste_records = waste_records.filter(
+            Q(user__username__icontains=search_query) |
+            Q(barcode_id__icontains=search_query)
+        )
+
+    if waste_type_filter:
+        waste_records = waste_records.filter(waste_type=waste_type_filter)
+
+    if start_date:
+        waste_records = waste_records.filter(timestamp__date__gte=start_date)
+
+    if end_date:
+        waste_records = waste_records.filter(timestamp__date__lte=end_date)
+
+    # Get unique waste types for dropdown
+    waste_types = WasteDisposalRecord.objects.values_list('waste_type', flat=True).distinct()
+
+    context = {
+        "users": users,
+        "waste_records": waste_records,
+        "waste_types": waste_types
+    }
+    return render(request, "wasteapp/admin_dashboard.html", context)

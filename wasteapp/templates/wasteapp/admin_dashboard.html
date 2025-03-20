@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center">Admin Dashboard</h2>
+    <hr>
+
+    <h4>Total Waste Collected: {{ total_waste_count }}</h4>
+    <h4>Total Credits Distributed: {{ total_credits_distributed }}</h4>
+
+    <hr>
+
+    <!-- Search & Filter Form -->
+    <form method="GET" class="mb-3 d-flex gap-2">
+        <input type="text" name="search" class="form-control" placeholder="Search by Username or Barcode" value="{{ request.GET.search }}">
+
+        <select name="waste_type" class="form-select">
+            <option value="">All Waste Types</option>
+            {% for type in waste_types %}
+                <option value="{{ type }}" {% if request.GET.waste_type == type %}selected{% endif %}>{{ type }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="date" name="start_date" class="form-control" value="{{ request.GET.start_date }}">
+        <input type="date" name="end_date" class="form-control" value="{{ request.GET.end_date }}">
+
+        <button type="submit" class="btn btn-primary">Filter</button>
+    </form>
+
+    <hr>
+
+    <h4>All Users</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Barcode ID</th>
+                <th>Total Credits</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.user.username }}</td>
+                <td>{{ user.barcode_id }}</td>
+                <td>{{ user.total_credits }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <hr>
+
+    <!-- Waste Type Chart -->
+    <h4>Waste Type Distribution</h4>
+    <canvas id="wasteChart"></canvas>
+
+    <!-- Credits Distribution Chart -->
+    <h4 class="mt-4">Credits Distribution</h4>
+    <canvas id="creditsChart"></canvas>
+
+    <!-- Waste Collection Over Time -->
+    <h4 class="mt-4">Waste Collection Over Time</h4>
+    <canvas id="wasteTimelineChart"></canvas>
+
+    <hr>
+
+    <h4>All Waste Disposal Records</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Waste Type</th>
+                <th>Credits Earned</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in waste_records %}
+            <tr>
+                <td>{{ record.user.username }}</td>
+                <td>{{ record.waste_type }}</td>
+                <td>{{ record.credits_earned }}</td>
+                <td>{{ record.timestamp }}</td>
+                <td>
+                    <a href="{% url 'edit_waste' record.id %}" class="btn btn-warning btn-sm">Edit</a>
+                    <a href="{% url 'delete_waste' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No records found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <hr>
+    <a href="{% url 'logout' %}" class="btn btn-danger w-100 mt-2">Logout</a>
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let wasteData = JSON.parse('{{ waste_data|escapejs }}');
+    let creditData = JSON.parse('{{ credit_data|escapejs }}');
+    let timelineData = JSON.parse('{{ timeline_data|escapejs }}');
+
+    let wasteCtx = document.getElementById('wasteChart').getContext('2d');
+    new Chart(wasteCtx, {
+        type: 'bar',
+        data: {
+            labels: wasteData.labels,
+            datasets: [{
+                label: 'Waste Type Count',
+                data: wasteData.values,
+                backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        }
+    });
+
+    let creditCtx = document.getElementById('creditsChart').getContext('2d');
+    new Chart(creditCtx, {
+        type: 'pie',
+        data: {
+            labels: creditData.labels,
+            datasets: [{
+                data: creditData.values,
+                backgroundColor: ['#ff6384', '#36a2eb', '#ffcd56', '#4bc0c0']
+            }]
+        }
+    });
+
+    let timelineCtx = document.getElementById('wasteTimelineChart').getContext('2d');
+    new Chart(timelineCtx, {
+        type: 'line',
+        data: {
+            labels: timelineData.labels,
+            datasets: [{
+                label: 'Waste Collected Over Time',
+                data: timelineData.values,
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 2
+            }]
+        }
+    });
+</script>
+{% endblock %}

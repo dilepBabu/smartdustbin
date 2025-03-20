@@ -43,36 +43,65 @@
             <p><strong>Barcode ID:</strong> {{ barcode_id }}</p>
             <p><strong>Total Credits:</strong> {{ total_credits }}</p>
             <hr>
+
             <h4>Waste Disposal History</h4>
             <table class="table table-striped">
                 <thead>
                     <tr>
                         <th>Date & Time</th>
-                        <th>Name</th>
-                        <th>Barcode ID</th>
                         <th>Waste Type</th>
                         <th>Credits Earned</th>
+                        <th>Actions</th>  <!-- ✅ Added Edit & Delete Buttons -->
                     </tr>
                 </thead>
                 <tbody>
                     {% for record in disposal_history %}
                     <tr>
                         <td>{{ record.timestamp }}</td>
-                        <td>{{ record.name }}</td>
-                        <td>{{ record.barcode_id }}</td>
                         <td>{{ record.waste_type }}</td>
                         <td>{{ record.credits_earned }}</td>
+                        <td>
+                            <a href="{% url 'edit_waste' record.id %}" class="btn btn-warning btn-sm">Edit</a>
+                            <a href="{% url 'delete_waste' record.id %}" class="btn btn-danger btn-sm">Delete</a>
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center">No waste disposal records found.</td>
+                        <td colspan="4" class="text-center">No waste disposal records found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
-            </table>            
+            </table>
+            
+            <hr>
 
+            <h4>Redemption History</h4>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Reward</th>
+                        <th>Credits Used</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for redeem in redemption_history %}
+                    <tr>
+                        <td>{{ redeem.timestamp }}</td>
+                        <td>{{ redeem.reward }}</td>
+                        <td>{{ redeem.redeemed_credits }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center">No redemptions found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
             <hr>
             <a href="{% url 'record_waste' %}" class="btn btn-success w-100">Record New Waste</a>
+            <a href="{% url 'redeem_credits' %}" class="btn btn-warning w-100 mt-2">Redeem Credits</a>
             <a href="{% url 'logout' %}" class="btn btn-danger w-100 mt-2">Logout</a>
         </div>
     </div>

@@ -48,6 +48,7 @@
                     <div class="alert alert-success">{{ message }}</div>
                 {% endfor %}
             {% endif %}
+
             <form method="POST" enctype="multipart/form-data">
                 {% csrf_token %}
                 
@@ -55,7 +56,7 @@
                 <label class="form-label">Waste Type</label>
                 {{ form.waste_type }}
             
-                <!-- Live Barcode Scanner -->
+                <!-- Manual Barcode Scanner Input -->
                 <label class="form-label mt-3">Scan Waste Barcode (Live)</label>
                 <div id="reader"></div>
                 <input type="text" id="barcode" name="barcode" class="form-control" placeholder="Scan barcode" readonly>
@@ -66,40 +67,40 @@
             
                 <!-- Image Upload for Barcode -->
                 <label class="form-label mt-3">Or Upload Barcode Image</label>
-                <input type="file" name="barcode_image" class="form-control">
-            
-                <button type="submit" class="btn btn-primary w-100 mt-3">Submit</button>
+                <input type="file" id="barcode-image" name="barcode_image" class="form-control" accept="image/*">
+
+                <button type="submit" class="btn btn-primary w-100 mt-3" id="submit-btn" disabled>Submit</button>
             </form>
             
-
             <hr>
             <a href="{% url 'dashboard' %}" class="btn btn-secondary w-100">Back to Dashboard</a>
         </div>
     </div>
+
     <script>
         let scanning = false;
-    
+
         function startScanner() {
-            if (scanning) return; // Prevent multiple scanners
+            if (scanning) return;
             scanning = true;
-    
+
             Quagga.init({
                 inputStream: {
                     name: "Live",
                     type: "LiveStream",
                     constraints: {
-                        facingMode: "environment", // Use the back camera
-                        width: 400, // Reduce width for better focus
+                        facingMode: "environment",
+                        width: 400,
                         height: 300
                     },
                     target: document.querySelector("#reader")
                 },
                 decoder: {
                     readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader"],
-                    multiple: false  // Prevent multiple detections at once
+                    multiple: false
                 },
                 locate: true,
-                frequency: 10, // Increase scan speed
+                frequency: 10,
             }, function(err) {
                 if (err) {
                     console.error("Scanner Error:", err);
@@ -107,42 +108,62 @@
                 }
                 Quagga.start();
             });
-    
+
             Quagga.onDetected(function(result) {
                 let scannedCode = result.codeResult.code;
                 console.log("Scanned:", scannedCode);
-    
+
                 if (scannedCode) {
-                    document.getElementById("barcode").value = scannedCode;  // Autofill barcode field
-                    Quagga.stop();  // Stop scanner after successful scan
+                    document.getElementById("barcode").value = scannedCode;
+                    Quagga.stop();
                     scanning = false;
                     document.getElementById("scanner-button").innerText = "Scan Again";
                     document.getElementById("scanner-button").disabled = false;
-                }
-            });
-    
-            Quagga.onProcessed(function(result) {
-                if (result && result.boxes) {
-                    let drawingCtx = Quagga.canvas.ctx.overlay,
-                        drawingCanvas = Quagga.canvas.dom.overlay;
-    
-                    drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-                    result.boxes.forEach(function(box) {
-                        Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, {
-                            color: "red",
-                            lineWidth: 2
-                        });
-                    });
+                    document.getElementById("submit-btn").disabled = false;
                 }
             });
         }
-    
+
         document.getElementById("scanner-button").addEventListener("click", function () {
             startScanner();
             this.innerText = "Scanning...";
             this.disabled = true;
         });
+
+        // Barcode scanning from image
+        document.getElementById("barcode-image").addEventListener("change", function(event) {
+            let file = event.target.files[0];
+            if (file) {
+                let reader = new FileReader();
+                reader.onload = function () {
+                    let img = new Image();
+                    img.src = reader.result;
+                    img.onload = function () {
+                        let canvas = document.createElement("canvas");
+                        let ctx = canvas.getContext("2d");
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0, img.width, img.height);
+                        
+                        Quagga.decodeSingle({
+                            decoder: {
+                                readers: ["code_128_reader", "ean_reader", "ean_8_reader", "code_39_reader"]
+                            },
+                            locate: true,
+                            src: img.src
+                        }, function (result) {
+                            if (result && result.codeResult) {
+                                document.getElementById("barcode").value = result.codeResult.code;
+                                document.getElementById("submit-btn").disabled = false;
+                            } else {
+                                alert("No barcode detected. Try another image.");
+                            }
+                        });
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
     </script>
-    
 </body>
 </html>

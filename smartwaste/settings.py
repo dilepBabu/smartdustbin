@@ -164,3 +164,13 @@ LOGGING = {
         },
     },
 }
+import firebase_admin
+from firebase_admin import credentials, db
+
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate("C:\\Users\\dilep\\Desktop\\deep\\firebase_config.json")
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://smart-dustbin-75385-default-rtdb.asia-southeast1.firebasedatabase.app/'
+})
+
+

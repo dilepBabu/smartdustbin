@@ -1,0 +1,12 @@
+specVersion: "v1"
+serviceId: "deep"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "fdcdb"
+      cloudSql:
+        instanceId: "deep-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

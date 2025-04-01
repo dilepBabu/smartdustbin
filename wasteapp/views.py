@@ -268,3 +268,105 @@ def admin_dashboard(request):
         "waste_types": waste_types
     }
     return render(request, "wasteapp/admin_dashboard.html", context)
+
+from django.http import JsonResponse
+import firebase_admin
+from firebase_admin import db
+
+def start_waste_disposal(request):
+    if request.method == "POST":
+        barcode = request.POST.get("barcode")  # Get barcode from request
+
+        if barcode:
+            ref = db.reference("waste_status")  # Firebase database reference
+            ref.update({
+                "ready": "start",  # Update status to "start"
+                "status": True  # IR sensor should start detecting
+            })
+            return JsonResponse({"message": "Waste disposal started", "status": "success"})
+
+    return JsonResponse({"message": "No barcode provided", "status": "error"})
+
+
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from .models import WasteDisposalRecord
+
+@login_required
+def upload_waste(request):
+    """📌 Handle New Waste Upload"""
+    if request.method == "POST":
+        barcode_image = request.FILES.get('barcode_image')
+
+        if barcode_image:
+            waste_entry = WasteDisposalRecord.objects.create(
+                user=request.user,
+                barcode_image=barcode_image,
+                waste_type=request.POST.get('waste_type', 'unknown'),
+                ir_sensor=True  # ✅ Start IR sensor when waste is added
+            )
+            waste_entry.save()
+            return redirect('waste_success')  # ✅ Redirect to a success page
+
+    return render(request, "upload_waste.html")
+from django.shortcuts import render, redirect
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from .models import WasteDisposalRecord
+import firebase_admin
+from firebase_admin import credentials, db
+import cv2
+import numpy as np
+import pyzbar.pyzbar as pyzbar  # ✅ Barcode detection
+
+# ✅ Firebase Reference
+ref = db.reference('/')
+
+def detect_barcode(image_path):
+    """🚀 Detect Barcode from Image"""
+    image = cv2.imread(image_path)
+    barcodes = pyzbar.decode(image)
+    
+    if barcodes:
+        return barcodes[0].data.decode('utf-8')  # ✅ Return detected barcode
+    return None  # ❌ No barcode detected
+
+def upload_barcode(request):
+    """🔥 Upload Barcode & Detect It"""
+    if request.method == 'POST' and request.FILES.get('barcode_image'):
+        barcode_image = request.FILES['barcode_image']
+
+        # ✅ Save Temporary Image
+        file_path = default_storage.save('temp/' + barcode_image.name, ContentFile(barcode_image.read()))
+        full_path = default_storage.path(file_path)
+
+        # 🔍 Detect Barcode
+        detected_barcode = detect_barcode(full_path)
+
+        if detected_barcode:
+            print(f"✅ Barcode Detected: {detected_barcode}")
+
+            # ✅ Update Firebase Only When Barcode is Read
+            ref.update({"Ready": "start", "Status": True})
+            print("🔥 Firebase Updated: Ready=start, Status=True")
+
+            # ⏳ Stop After 15 Seconds
+            import threading
+            def delayed_stop():
+                import time
+                time.sleep(15)
+                print("⏳ 15s completed. Stopping...")
+                ref.update({"Ready": "stop", "Status": False})
+                print("✅ Firebase Updated: Ready=stop, Status=False")
+
+            threading.Thread(target=delayed_stop, daemon=True).start()
+
+            # ✅ Save to Database
+            WasteDisposalRecord.objects.create(
+                user=request.user, barcode_id=detected_barcode, barcode_image=barcode_image
+            )
+
+        else:
+            print("❌ No barcode detected!")
+
+    return redirect('home')

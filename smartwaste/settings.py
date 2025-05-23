@@ -14,7 +14,6 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from a .env file
 load_dotenv()
 
 # Base directory of the project
@@ -56,7 +55,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    # ✅ Add this line (Fixes the error)
+   
     'allauth.account.middleware.AccountMiddleware',
 ]
 
@@ -66,7 +65,7 @@ ROOT_URLCONF = 'smartwaste.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / "templates"],  # Add this line
+        'DIRS': [BASE_DIR / "templates"],  
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -82,19 +81,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'smartwaste.wsgi.application'
 
-# Database Configuration with Error Handling
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'smartwaste',
         'USER': 'root',
-        'PASSWORD': 'dilepBABU',
+        'PASSWORD': 'Pubg@0123',
         'HOST': 'localhost',
         'PORT': '3306',
     }
 }
 
-# Password validation
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
@@ -102,13 +101,13 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization
+
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Asia/Kolkata'  # Changed to IST for India
+TIME_ZONE = 'Asia/Kolkata' 
 USE_I18N = True
 USE_TZ = True
 
-# Static & Media Files
+
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
@@ -116,7 +115,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Default primary key field type
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SITE_ID = 1
@@ -124,14 +123,12 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
-LOGIN_REDIRECT_URL = '/dashboard/'  # ✅ Redirect users to dashboard after login
-LOGOUT_REDIRECT_URL = '/'  # ✅ Redirect to home page after logout
-
+LOGIN_REDIRECT_URL = '/dashboard/'  
+LOGOUT_REDIRECT_URL = '/' 
 ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_USERNAME_REQUIRED = True
 
-# Security Headers (Important for production)
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 CSRF_COOKIE_SECURE = not DEBUG
@@ -141,7 +138,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 X_FRAME_OPTIONS = 'DENY'
 
-# Logging to track errors in production
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
@@ -167,8 +163,7 @@ LOGGING = {
 import firebase_admin
 from firebase_admin import credentials, db
 
-# Initialize Firebase Admin SDK
-cred = credentials.Certificate("C:\\Users\\dilep\\Desktop\\deep\\firebase_config.json")
+cred = credentials.Certificate("C:\\Users\\91628\\Desktop\\deep\\firebase_config.json")
 firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://smart-dustbin-75385-default-rtdb.asia-southeast1.firebasedatabase.app/'
 })

@@ -1,0 +1,23 @@
+{% if waste_history %}
+    <table>
+        <tr>
+            <th>Date & Time</th>
+            <th>Waste Type</th>
+            <th>Credits Earned</th>
+            <th>Actions</th>
+        </tr>
+        {% for waste in waste_history %}
+        <tr>
+            <td>{{ waste.timestamp }}</td>
+            <td>{{ waste.waste_type }}</td>
+            <td>{{ waste.credits }}</td>
+            <td>
+                <button class="edit-btn">Edit</button>
+                <button class="delete-btn">Delete</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+{% else %}
+    <p>No waste disposal records found.</p>
+{% endif %}

@@ -32,18 +32,51 @@
             background: white;
             color: black;
         }
+        .rank-badge {
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="dashboard-container">
             <h2 class="text-center">User Dashboard</h2>
+            
             <hr>
             <p><strong>Username:</strong> {{ username }}</p>
             <p><strong>Barcode ID:</strong> {{ barcode_id }}</p>
             <p><strong>Total Credits:</strong> {{ total_credits }}</p>
+            <p><strong>Rank:</strong> {{ user_rank }}</p>
+                {% if user_rank == 1 %} 🥇 {% elif user_rank == 2 %} 🥈 {% elif user_rank == 3 %} 🥉 {% endif %}
+            </p>
             <hr>
 
+            <h3>🏆 User Rankings</h3>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>User</th>
+                        <th>Credits</th>
+                       
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in ranking %}
+                    {% if not user.user.is_staff and not user.user.is_superuser %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ user.user.username }}</td>
+                            <td>{{ user.credits }}</td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+                
+                </tbody>
+            </table>
+            
+
+            <hr>
             <h4>Waste Disposal History</h4>
             <table class="table table-striped">
                 <thead>
@@ -51,7 +84,7 @@
                         <th>Date & Time</th>
                         <th>Waste Type</th>
                         <th>Credits Earned</th>
-                        <th>Actions</th>  <!-- ✅ Added Edit & Delete Buttons -->
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -74,7 +107,6 @@
             </table>
             
             <hr>
-
             <h4>Redemption History</h4>
             <table class="table table-striped">
                 <thead>
@@ -98,11 +130,11 @@
                     {% endfor %}
                 </tbody>
             </table>
-            
+
             <hr>
             <a href="{% url 'record_waste' %}" class="btn btn-success w-100">Record New Waste</a>
             <a href="{% url 'redeem_credits' %}" class="btn btn-warning w-100 mt-2">Redeem Credits</a>
-            <a href="{% url 'logout' %}" class="btn btn-danger w-100 mt-2">Logout</a>
+            <a href="{% url 'login' %}" class="btn btn-danger w-100 mt-2">Logout</a>
         </div>
     </div>
 </body>

@@ -1,15 +1,22 @@
 from django.shortcuts import render, redirect,get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import WasteBin, WasteDisposalRecord, UserProfile, RedeemHistory
+from .models import WasteBin, WasteDisposal, UserProfile, Redemption
 from django.contrib.auth import authenticate, login, logout,authenticate, get_backends
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.models import User
-from django.utils import timezone  # ✅ Import timezone for timestamp
+from django.utils import timezone  
+from django.db import models  
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 import cv2
+from wasteapp.models import RedeemHistory
+from django.db.models import Sum
+from django.contrib import messages
+from django.shortcuts import render, redirect
+from wasteapp.models import UserProfile, WasteDisposal, RedeemHistory
+
 import numpy as np
 from pyzbar.pyzbar import decode
 from PIL import Image
@@ -22,22 +29,22 @@ def get_bins(request):
 def record_waste(request):
     if request.method == 'POST':
         form = WasteDisposalForm(request.POST, request.FILES)
-        barcode_value = request.POST.get('barcode', '')  # ✅ Get scanned barcode
+        barcode_value = request.POST.get('barcode', '')  
 
         if form.is_valid():
             try:
-                # ✅ Check if the barcode exists in the UserProfile table
+               
                 user_profile = UserProfile.objects.get(barcode_id=barcode_value)
 
-                # ✅ Ensure that waste is recorded for the correct user (not the logged-in user by default)
+               
                 waste_disposal = form.save(commit=False)
-                waste_disposal.user = user_profile.user  # ✅ Assign waste to the correct user
+                waste_disposal.user = user_profile.user  
                 waste_disposal.barcode_id = barcode_value
                 waste_disposal.credits_earned = 5
                 waste_disposal.timestamp = timezone.now()
                 waste_disposal.save()
 
-                # ✅ Add credits only to the correct user
+               
                 user_profile.credits += 5
                 user_profile.save()
 
@@ -70,21 +77,50 @@ def user_login(request):
 def user_logout(request):
     logout(request)
     return redirect('login')
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db.models import Sum
+from .models import UserProfile, WasteDisposal, Redemption
+
+
+
+
+
 @login_required
 def dashboard(request):
     try:
         user_profile = UserProfile.objects.get(user=request.user)
 
-        # ✅ Show only the logged-in user's records
-        disposal_history = WasteDisposalRecord.objects.filter(user=request.user).order_by('-timestamp')
+       
+        disposal_history = WasteDisposal.objects.filter(user=request.user).order_by('-timestamp')[:10]
         redemption_history = RedeemHistory.objects.filter(user=request.user).order_by('-timestamp')
+
+        
+        total_credits = WasteDisposal.objects.filter(user=request.user).aggregate(
+            total=Sum('credits_earned')
+        )['total'] or 0  
+
+        
+        ranking = UserProfile.objects.annotate(
+            computed_credits=Sum('user__wastedisposal__credits_earned')
+        ).order_by('-computed_credits')
+
+        
+        user_rank = None
+        for index, profile in enumerate(ranking, start=1):
+            if profile.user == request.user:
+                user_rank = index
+                break  
 
         context = {
             'username': request.user.username,
             'barcode_id': user_profile.barcode_id,
-            'total_credits': user_profile.credits,
-            'disposal_history': disposal_history,  # ✅ Now only shows user's own records
-            'redemption_history': redemption_history,
+            'total_credits': total_credits,
+            'disposal_history': disposal_history, 
+            'redemption_history': redemption_history, 
+            'ranking': ranking,
+            'user_rank': user_rank, 
         }
         return render(request, 'wasteapp/dashboard.html', context)
 
@@ -112,11 +148,11 @@ def register(request):
         user = User.objects.create_user(username=username, password=password1)
         UserProfile.objects.create(user=user, barcode_id=barcode_id)
 
-        # Explicitly set authentication backend
-        backend = get_backends()[0]  # Select the first authentication backend
+        
+        backend = get_backends()[0]  
         user.backend = f"{backend.__module__}.{backend.__class__.__name__}"
         
-        login(request, user)  # Now Django knows which backend to use
+        login(request, user) 
 
         messages.success(request, "Registration successful!")
         return redirect('dashboard')
@@ -127,22 +163,22 @@ def register(request):
 def record_waste(request):
     if request.method == 'POST':
         form = WasteDisposalForm(request.POST, request.FILES)
-        barcode_value = request.POST.get('barcode', '')  # Get scanned barcode
+        barcode_value = request.POST.get('barcode', '')  
 
         if form.is_valid():
             try:
-                # ✅ Find the user that owns this barcode
+                
                 user_profile = UserProfile.objects.get(barcode_id=barcode_value)
 
-                # ✅ Create a new waste record under the correct user
+                
                 waste_disposal = form.save(commit=False)
-                waste_disposal.user = user_profile.user  # ✅ Assign waste to the correct user
+                waste_disposal.user = user_profile.user  
                 waste_disposal.barcode_id = barcode_value
                 waste_disposal.credits_earned = 5
                 waste_disposal.timestamp = timezone.now()
                 waste_disposal.save()
 
-                # ✅ Update credits for the correct user
+                
                 user_profile.credits += 5
                 user_profile.save()
 
@@ -159,53 +195,51 @@ def record_waste(request):
     return render(request, 'wasteapp/record_waste.html', {'form': form})
 
 
-# ✅ Function to extract barcode from an uploaded image
+
 def extract_barcode_from_image(image):
     img = Image.open(image)
-    img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)  # Convert to grayscale
+    img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY) 
     barcodes = decode(img)
 
     if barcodes:
-        return barcodes[0].data.decode('utf-8')  # ✅ Return the barcode as text
-    return None  # ✅ Return None if no barcode is detected
+        return barcodes[0].data.decode('utf-8')  
+    return None 
 
 from .forms import RedeemForm
 
-@login_required
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from wasteapp.models import UserProfile, RedeemHistory
+from wasteapp.forms import RedeemForm
+
 def redeem_credits(request):
-    user_profile = UserProfile.objects.get(user=request.user)
+    user_profile = get_object_or_404(UserProfile, user=request.user)
 
     if request.method == 'POST':
         form = RedeemForm(request.POST)
         if form.is_valid():
             selected_reward = form.cleaned_data['reward']
-            required_credits = 70 if selected_reward == 'Sick Leave' else 50  # Set credit requirement
+            required_credits = 70 if selected_reward == 'Sick Leave' else 50
 
             if user_profile.credits >= required_credits:
-                # Deduct credits and save redemption history
                 user_profile.credits -= required_credits
                 user_profile.save()
-
-                RedeemHistory.objects.create(
-                    user=request.user,
-                    redeemed_credits=required_credits,
-                    reward=selected_reward
-                )
-
+                RedeemHistory.objects.create(user=request.user, credits_used=required_credits, reward=selected_reward)
                 messages.success(request, f"You have successfully redeemed {selected_reward}!")
                 return redirect('dashboard')
             else:
                 messages.error(request, "Not enough credits to redeem this reward.")
-    
     else:
         form = RedeemForm()
 
     return render(request, 'wasteapp/redeem.html', {'form': form, 'credits': user_profile.credits})
 
+from wasteapp.models import WasteDisposal
 
 @login_required
 def edit_waste(request, waste_id):
-    waste_record = get_object_or_404(WasteDisposalRecord, id=waste_id, user=request.user)
+    waste_record = get_object_or_404(WasteDisposal, id=waste_id, user=request.user)
 
     if request.method == "POST":
         form = WasteDisposalForm(request.POST, instance=waste_record)
@@ -220,7 +254,7 @@ def edit_waste(request, waste_id):
 
 @login_required
 def delete_waste(request, waste_id):
-    waste_record = get_object_or_404(WasteDisposalRecord, id=waste_id, user=request.user)
+    waste_record = get_object_or_404(WasteDisposal, id=waste_id, user=request.user)
     waste_record.delete()
     messages.success(request, "Waste record deleted successfully!")
     return redirect('dashboard')
@@ -235,15 +269,15 @@ def admin_required(user):
 @user_passes_test(admin_required, login_url='/login/')
 def admin_dashboard(request):
     users = UserProfile.objects.all()
-    waste_records = WasteDisposalRecord.objects.all()
+    waste_records = WasteDisposal.objects.all()
 
-    # Fetch filter parameters from request
+    
     search_query = request.GET.get('search', '')
     waste_type_filter = request.GET.get('waste_type', '')
     start_date = parse_date(request.GET.get('start_date', ''))
     end_date = parse_date(request.GET.get('end_date', ''))
 
-    # Apply filters
+   
     if search_query:
         waste_records = waste_records.filter(
             Q(user__username__icontains=search_query) |
@@ -259,8 +293,8 @@ def admin_dashboard(request):
     if end_date:
         waste_records = waste_records.filter(timestamp__date__lte=end_date)
 
-    # Get unique waste types for dropdown
-    waste_types = WasteDisposalRecord.objects.values_list('waste_type', flat=True).distinct()
+   
+    waste_types = WasteDisposal.objects.values_list('waste_type', flat=True).distinct()
 
     context = {
         "users": users,
@@ -275,22 +309,37 @@ from firebase_admin import db
 
 def start_waste_disposal(request):
     if request.method == "POST":
-        barcode = request.POST.get("barcode")  # Get barcode from request
+        barcode = request.POST.get("barcode")  
 
         if barcode:
-            ref = db.reference("waste_status")  # Firebase database reference
+            ref = db.reference("waste_status")  
             ref.update({
-                "ready": "start",  # Update status to "start"
-                "status": True  # IR sensor should start detecting
+                "ready": "start",  
+                "status": True 
             })
             return JsonResponse({"message": "Waste disposal started", "status": "success"})
 
     return JsonResponse({"message": "No barcode provided", "status": "error"})
 
 
+
+from django.shortcuts import render
+from django.contrib.auth.models import User
+from .models import UserProfile 
+
+def user_ranking(request):
+    
+    ranking = UserProfile.objects.filter(
+        user__is_staff=False,  
+        user__is_superuser=False
+    ).order_by('-credits') 
+
+    return render(request, 'wasteapp/ranking.html', {'ranking': ranking})
+
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from .models import WasteDisposalRecord
+from .models import WasteDisposal  
+
 
 @login_required
 def upload_waste(request):
@@ -299,27 +348,28 @@ def upload_waste(request):
         barcode_image = request.FILES.get('barcode_image')
 
         if barcode_image:
-            waste_entry = WasteDisposalRecord.objects.create(
+            waste_entry = WasteDisposal.objects.create(
                 user=request.user,
                 barcode_image=barcode_image,
                 waste_type=request.POST.get('waste_type', 'unknown'),
-                ir_sensor=True  # ✅ Start IR sensor when waste is added
+                ir_sensor=True  
             )
             waste_entry.save()
-            return redirect('waste_success')  # ✅ Redirect to a success page
+            return redirect('waste_success')  
 
     return render(request, "upload_waste.html")
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from .models import WasteDisposalRecord
+from .models import WasteDisposal 
+
 import firebase_admin
 from firebase_admin import credentials, db
 import cv2
 import numpy as np
-import pyzbar.pyzbar as pyzbar  # ✅ Barcode detection
+import pyzbar.pyzbar as pyzbar  
 
-# ✅ Firebase Reference
+
 ref = db.reference('/')
 
 def detect_barcode(image_path):
@@ -328,29 +378,29 @@ def detect_barcode(image_path):
     barcodes = pyzbar.decode(image)
     
     if barcodes:
-        return barcodes[0].data.decode('utf-8')  # ✅ Return detected barcode
-    return None  # ❌ No barcode detected
+        return barcodes[0].data.decode('utf-8')  
+    return None  
 
 def upload_barcode(request):
     """🔥 Upload Barcode & Detect It"""
     if request.method == 'POST' and request.FILES.get('barcode_image'):
         barcode_image = request.FILES['barcode_image']
 
-        # ✅ Save Temporary Image
+        
         file_path = default_storage.save('temp/' + barcode_image.name, ContentFile(barcode_image.read()))
         full_path = default_storage.path(file_path)
 
-        # 🔍 Detect Barcode
+       
         detected_barcode = detect_barcode(full_path)
 
         if detected_barcode:
-            print(f"✅ Barcode Detected: {detected_barcode}")
+            print(f" Barcode Detected: {detected_barcode}")
 
-            # ✅ Update Firebase Only When Barcode is Read
+            
             ref.update({"Ready": "start", "Status": True})
-            print("🔥 Firebase Updated: Ready=start, Status=True")
+            print(" Firebase Updated: Ready=start, Status=True")
 
-            # ⏳ Stop After 15 Seconds
+           
             import threading
             def delayed_stop():
                 import time
@@ -362,7 +412,7 @@ def upload_barcode(request):
             threading.Thread(target=delayed_stop, daemon=True).start()
 
             # ✅ Save to Database
-            WasteDisposalRecord.objects.create(
+            WasteDisposal.objects.create(
                 user=request.user, barcode_id=detected_barcode, barcode_image=barcode_image
             )
 
@@ -370,3 +420,81 @@ def upload_barcode(request):
             print("❌ No barcode detected!")
 
     return redirect('home')
+
+
+from django.shortcuts import render
+from django.db import connection
+
+def credit_ranking(request):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT student_id, name, credits, 
+                   RANK() OVER (ORDER BY credits DESC) AS ranking_position
+            FROM student_credits
+        """)
+        students = cursor.fetchall()  
+
+
+    return render(request, 'dashboard.html', {'students': students})
+
+from django.shortcuts import render
+from django.db.models import Sum, F
+from .models import User, WasteDisposal, Redemption
+
+from django.shortcuts import render
+from django.contrib.auth.models import User
+from django.db.models import Sum
+from .models import WasteDisposal, Redemption
+
+def user_dashboard(request):
+    user = request.user 
+    barcode_id = getattr(user, 'barcode_id', None)  
+    
+
+    total_credits = WasteDisposal.objects.filter(user=user).aggregate(total=Sum('credits_earned'))['total'] or 0
+    
+
+    users = User.objects.annotate(
+        total_credits=Sum('wastedisposal__credits_earned', default=0)
+    ).order_by('-total_credits', 'username')  # Sort by credits, then by name
+    
+
+    leaderboard = [
+        {'rank': index + 1, 'name': u.username, 'credits': u.total_credits or 0}
+        for index, u in enumerate(users)
+    ]
+    
+ 
+    user_rank = next((item['rank'] for item in leaderboard if item['name'] == user.username), None)
+    
+ 
+    disposal_history = WasteDisposal.objects.filter(user=user).order_by('-timestamp').select_related('user')
+    redemption_history = Redemption.objects.filter(user=user).order_by('-timestamp')
+    
+    return render(request, 'dashboard.html', {
+        'username': user.username,
+        'barcode_id': barcode_id,
+        'total_credits': total_credits,
+        'user_rank': user_rank,
+        'leaderboard': leaderboard[:10], 
+        'disposal_history': disposal_history,
+        'redemption_history': redemption_history
+    })
+from django.shortcuts import render
+from .models import Redemption
+
+def redemption_history(request):
+    redemptions = Redemption.objects.filter(user=request.user).order_by('-timestamp')
+    return render(request, 'wasteapp/redemption_history.html', {'redemptions': redemptions})
+from django.shortcuts import render
+from .models import WasteDisposal
+from django.shortcuts import render
+from .models import WasteDisposal
+
+def waste_disposal_history(request):
+    waste_history = WasteDisposal.objects.filter(user=request.user).order_by('-timestamp')[:8]
+    
+    
+    print("Waste Disposal History:", waste_history)  
+    
+    return render(request, 'wasteapp/waste_disposal_history.html', {'waste_history': waste_history})

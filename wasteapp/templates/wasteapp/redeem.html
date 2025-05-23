@@ -48,6 +48,10 @@
                 {% csrf_token %}
                 <label class="form-label">Select Reward</label>
                 {{ form.reward }}
+
+                <!-- Hidden field to pass the correct field name -->
+                <input type="hidden" name="credits_used" value="{{ credits }}">
+
                 <button type="submit" class="btn btn-primary w-100 mt-3">Redeem</button>
             </form>
 

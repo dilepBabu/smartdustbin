@@ -1,0 +1,18 @@
+{% if redemptions %}
+    <table>
+        <tr>
+            <th>Date & Time</th>
+            <th>Reward</th>
+            <th>Credits Used</th>
+        </tr>
+        {% for redemption in redemptions %}
+        <tr>
+            <td>{{ redemption.timestamp }}</td>
+            <td>{{ redemption.reward }}</td>
+            <td>{{ redemption.redeemed_credits }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% else %}
+    <p>No redemptions found.</p>
+{% endif %}

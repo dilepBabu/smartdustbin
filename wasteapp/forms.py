@@ -1,5 +1,6 @@
 from django import forms
-from .models import WasteDisposalRecord
+from .models import WasteDisposal  
+
 from .models import RedeemHistory
 
 class RedeemForm(forms.ModelForm):
@@ -15,10 +16,10 @@ class RedeemForm(forms.ModelForm):
         fields = ['reward']
 
 class WasteDisposalForm(forms.ModelForm):
-    barcode_image = forms.ImageField(required=False)  # ✅ Allow image upload
+    barcode_image = forms.ImageField(required=False) 
 
     class Meta:
-        model = WasteDisposalRecord
+        model = WasteDisposal
         fields = ['waste_type', 'barcode_image']
         widgets = {
             'waste_type': forms.Select(choices=[
